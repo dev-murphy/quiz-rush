@@ -3,6 +3,7 @@ import type { Game } from '#shared/types'
 
 export interface GameListItem extends Game {
   questionCount: number
+  itemCount: number
 }
 
 export const useMasterStore = defineStore('master', () => {

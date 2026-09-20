@@ -10,6 +10,7 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1136.0",
     "@iconify-json/tabler": "^1.2.38",
     "@nuxt/icon": "^2.5.1",
     "@pinia/nuxt": "^1.0.2",

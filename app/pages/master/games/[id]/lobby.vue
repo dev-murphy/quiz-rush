@@ -30,10 +30,14 @@ async function copyLink() {
 
 const confirmingStart = ref(false)
 const starting = ref(false)
+const startError = ref('')
 async function start() {
   starting.value = true
+  startError.value = ''
   try {
     await $fetch(`/api/games/${gameId}/start`, { method: 'POST' })
+  } catch (e: unknown) {
+    startError.value = (e as { data?: { statusMessage?: string } })?.data?.statusMessage ?? 'Could not start game'
   } finally {
     starting.value = false
     confirmingStart.value = false
@@ -77,6 +81,9 @@ const teamPlayerCount = (teamId: string) => liveGame.players.filter((p) => p.tea
     <main class="mx-auto max-w-5xl px-6 py-8 pb-28">
       <h1 class="mb-1 font-display text-3xl font-extrabold text-slate-800 dark:text-slate-100">{{ liveGame.game?.title }}</h1>
       <p class="mb-8 text-slate-400 dark:text-slate-500">Waiting in lobby · {{ liveGame.players.length }} player(s) joined</p>
+      <p v-if="startError" class="mb-8 -mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 dark:bg-red-500/10">
+        {{ startError }}
+      </p>
 
       <div class="grid gap-6 lg:grid-cols-[320px_1fr]">
         <div class="card flex flex-col items-center gap-4 p-6 text-center">

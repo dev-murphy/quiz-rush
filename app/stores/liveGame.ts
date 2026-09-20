@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia'
 import type {
+  BingoCalledItem,
+  BingoCardCell,
+  BingoWinner,
   CatchupSyncPayload,
   Game,
   LeaderboardEntry,
@@ -30,7 +33,15 @@ export const useLiveGameStore = defineStore('liveGame', () => {
   const lastError = ref<string | null>(null)
   const catchup = ref<CatchupSyncPayload | null>(null)
 
+  const bingoCard = ref<BingoCardCell[] | null>(null)
+  const bingoCalledItems = ref<BingoCalledItem[]>([])
+  const bingoItemsRemaining = ref(0)
+  const bingoLastCalled = ref<BingoCalledItem | null>(null)
+  const bingoClaimRejected = ref<string | null>(null)
+  const bingoWinner = ref<BingoWinner | null>(null)
+
   const myTeam = computed(() => self.value?.team ?? null)
+  const bingoCalledItemIds = computed(() => new Set(bingoCalledItems.value.map((c) => c.itemId)))
 
   function reset() {
     game.value = null
@@ -50,6 +61,12 @@ export const useLiveGameStore = defineStore('liveGame', () => {
     cancelled.value = null
     lastError.value = null
     catchup.value = null
+    bingoCard.value = null
+    bingoCalledItems.value = []
+    bingoItemsRemaining.value = 0
+    bingoLastCalled.value = null
+    bingoClaimRejected.value = null
+    bingoWinner.value = null
   }
 
   function applyServerMessage(msg: ServerMessage) {
@@ -65,6 +82,9 @@ export const useLiveGameStore = defineStore('liveGame', () => {
         leaderboard.value = msg.state.leaderboard
         myTeamLocked.value = msg.state.myTeamLocked
         answeredTeamIds.value = new Set(msg.state.lockedTeamIds)
+        bingoCard.value = msg.state.bingoCard
+        bingoCalledItems.value = msg.state.bingoCalledItems
+        bingoItemsRemaining.value = msg.state.bingoItemsRemaining
         break
       }
       case 'PLAYER_JOINED': {
@@ -158,7 +178,23 @@ export const useLiveGameStore = defineStore('liveGame', () => {
       case 'GAME_FINISHED': {
         leaderboard.value = msg.leaderboard
         finalLeaderboard.value = msg.leaderboard
+        bingoWinner.value = msg.winner ?? null
         if (game.value) game.value = { ...game.value, status: 'FINISHED' }
+        break
+      }
+      case 'BINGO_CARD_ASSIGNED': {
+        bingoCard.value = msg.cells
+        break
+      }
+      case 'BINGO_ITEM_CALLED': {
+        bingoCalledItems.value = msg.calledItems
+        bingoLastCalled.value = { itemId: msg.itemId, text: msg.text }
+        bingoItemsRemaining.value = msg.remaining
+        break
+      }
+      case 'BINGO_CLAIM_REJECTED': {
+        bingoClaimRejected.value = msg.message
+        setTimeout(() => (bingoClaimRejected.value = null), 2200)
         break
       }
       case 'GAME_CANCELLED': {
@@ -199,6 +235,13 @@ export const useLiveGameStore = defineStore('liveGame', () => {
     cancelled,
     lastError,
     catchup,
+    bingoCard,
+    bingoCalledItems,
+    bingoCalledItemIds,
+    bingoItemsRemaining,
+    bingoLastCalled,
+    bingoClaimRejected,
+    bingoWinner,
     applyServerMessage,
     reset
   }

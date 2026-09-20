@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import type { GameMode } from '#shared/types'
 
+// Plain, untyped fetch for this file's calls: with several template-literal
+// URLs in one file, Nitro's typed-route matching against `$fetch` can blow
+// TS's recursion limit as the app's total route count grows (see
+// useAuthedFetch.ts for the same issue/fix elsewhere).
+const rawFetch = $fetch as (url: string, opts?: Record<string, unknown>) => Promise<unknown>
+
 const props = defineProps<{ gameId: string; mode: GameMode }>()
 
 const liveGame = useLiveGameStore()
@@ -20,20 +26,20 @@ async function run(action: () => Promise<unknown>) {
   }
 }
 
-const start = () => run(() => $fetch(`/api/games/${props.gameId}/catchup/start`, { method: 'POST' }))
-const begin = () => run(() => $fetch(`/api/games/${props.gameId}/catchup/begin`, { method: 'POST' }))
-const cancel = () => run(() => $fetch(`/api/games/${props.gameId}/catchup/cancel`, { method: 'POST' }))
+const start = () => run(() => rawFetch(`/api/games/${props.gameId}/catchup/start`, { method: 'POST' }))
+const begin = () => run(() => rawFetch(`/api/games/${props.gameId}/catchup/begin`, { method: 'POST' }))
+const cancel = () => run(() => rawFetch(`/api/games/${props.gameId}/catchup/cancel`, { method: 'POST' }))
 
 const newTeamName = ref('')
 function addTeam() {
   const name = newTeamName.value.trim()
   if (!name) return
-  run(() => $fetch(`/api/games/${props.gameId}/catchup/teams`, { method: 'POST', body: { name } })).then(() => {
+  run(() => rawFetch(`/api/games/${props.gameId}/catchup/teams`, { method: 'POST', body: { name } })).then(() => {
     newTeamName.value = ''
   })
 }
 function removeTeam(teamId: string) {
-  run(() => $fetch(`/api/games/${props.gameId}/teams/${teamId}`, { method: 'DELETE' }))
+  run(() => rawFetch(`/api/games/${props.gameId}/teams/${teamId}`, { method: 'DELETE' }))
 }
 
 const teams = computed(() => liveGame.catchup?.teams ?? [])

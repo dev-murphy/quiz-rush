@@ -9,6 +9,9 @@ export interface GameExport {
   players: ReturnType<typeof repo.listPlayers>
   answers: ReturnType<typeof repo.getAnswersForGame>
   leaderboard: ReturnType<typeof computeLeaderboard>
+  bingoItems: ReturnType<typeof repo.listBingoItems>
+  bingoCards: ReturnType<typeof repo.listBingoCardsForGame>
+  bingoCalls: ReturnType<typeof repo.listBingoCalls>
 }
 
 /** Builds a full, self-contained export of a single game's data for backup/download. */
@@ -21,7 +24,10 @@ export function buildGameExport(gameId: string): GameExport | null {
     teams: repo.listTeams(gameId),
     players: repo.listPlayers(gameId),
     answers: repo.getAnswersForGame(gameId),
-    leaderboard: computeLeaderboard(gameId, new Map())
+    leaderboard: computeLeaderboard(gameId, new Map()),
+    bingoItems: repo.listBingoItems(gameId),
+    bingoCards: repo.listBingoCardsForGame(gameId),
+    bingoCalls: repo.listBingoCalls(gameId)
   }
 }
 
@@ -69,6 +75,9 @@ export function importFullExport(bundle: FullExportBundle): ImportResult {
       if (g.teams.length) repo.restoreTeams(g.teams)
       if (g.players.length) repo.restorePlayers(g.players)
       if (g.answers.length) repo.restoreAnswers(g.answers)
+      if (g.bingoItems?.length) repo.restoreBingoItems(g.bingoItems)
+      if (g.bingoCards?.length) repo.restoreBingoCards(g.bingoCards)
+      if (g.bingoCalls?.length) repo.restoreBingoCalls(g.bingoCalls)
       imported.push(g.game.id)
     }
   })

@@ -44,13 +44,21 @@ async function restart() {
         <Icon name="tabler:trophy" class="h-16 w-16 text-amber-300" />
         <p class="font-display text-3xl font-extrabold" :style="{ color: winner.color }">{{ winner.name }} wins!</p>
         <p class="text-white/70">{{ winner.score.toLocaleString() }} points</p>
+        <p v-if="liveGame.bingoWinner" class="text-sm font-semibold text-white/50">
+          BINGO! · {{ liveGame.bingoWinner.playerName }} · {{ liveGame.bingoWinner.pattern === 'BLACKOUT' ? 'Full card' : 'Line' }}
+        </p>
       </div>
 
       <div class="w-full card p-5 text-left">
         <GameLeaderboard :entries="entries" />
       </div>
 
-      <CatchupPanel :game-id="gameId" :mode="liveGame.game?.mode ?? 'TEAM'" class="w-full text-left" />
+      <CatchupPanel
+        v-if="liveGame.game?.gameType !== 'BINGO'"
+        :game-id="gameId"
+        :mode="liveGame.game?.mode ?? 'TEAM'"
+        class="w-full text-left"
+      />
 
       <div v-if="!confirmingRestart">
         <button

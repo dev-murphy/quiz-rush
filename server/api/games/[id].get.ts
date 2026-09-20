@@ -1,5 +1,5 @@
 import { requireGameMaster } from '../../utils/auth'
-import { getGame, listMainTeams, listPlayers, listQuestions } from '../../utils/repo'
+import { getGame, listBingoItems, listMainTeams, listPlayers, listQuestions } from '../../utils/repo'
 
 export default defineEventHandler((event) => {
   requireGameMaster(event)
@@ -9,6 +9,7 @@ export default defineEventHandler((event) => {
   return {
     game,
     questions: listQuestions(id),
+    bingoItems: listBingoItems(id),
     teams: listMainTeams(id),
     players: listPlayers(id)
   }

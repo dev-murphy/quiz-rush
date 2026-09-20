@@ -462,7 +462,10 @@ export function buildFullSyncState(gameId: string, playerId: string | null): Ful
     leaderboard: computeLeaderboard(gameId, rt.previousRanks),
     myAnswerLocked: myTeamLocked,
     myTeamLocked,
-    lockedTeamIds: [...rt.lockedTeams]
+    lockedTeamIds: [...rt.lockedTeams],
+    bingoCard: null,
+    bingoCalledItems: [],
+    bingoItemsRemaining: 0
   }
 }
 

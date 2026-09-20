@@ -2,11 +2,14 @@ import { randomUUID } from 'node:crypto'
 import { db } from './db'
 import type {
   AnswerRecord,
+  BingoConfig,
+  BingoItem,
   CatchupSession,
   CatchupStatus,
   Game,
   GameMode,
   GameStatus,
+  GameType,
   Player,
   Question,
   QuestionConfig,
@@ -24,6 +27,8 @@ interface GameRow {
   pin: string | null
   status: string
   mode: string
+  game_type: string
+  bingo_config: string | null
   current_question_index: number
   result_delay_seconds: number
   paused: number
@@ -32,6 +37,8 @@ interface GameRow {
   finished_at: number | null
 }
 
+const DEFAULT_BINGO_CONFIG: BingoConfig = { gridSize: 5, freeSpace: true, winPattern: 'LINE', winPoints: 1000 }
+
 function mapGame(row: GameRow): Game {
   return {
     id: row.id,
@@ -39,6 +46,8 @@ function mapGame(row: GameRow): Game {
     pin: row.pin,
     status: row.status as GameStatus,
     mode: row.mode as GameMode,
+    gameType: row.game_type as GameType,
+    bingoConfig: row.bingo_config ? (JSON.parse(row.bingo_config) as BingoConfig) : null,
     currentQuestionIndex: row.current_question_index,
     resultDelaySeconds: row.result_delay_seconds,
     paused: !!row.paused,
@@ -137,13 +146,14 @@ function mapPlayer(row: PlayerRow): Player {
 // Games
 // ---------------------------------------------------------------------------
 
-export function createGame(title: string, mode: GameMode = 'TEAM'): Game {
+export function createGame(title: string, mode: GameMode = 'TEAM', gameType: GameType = 'QUIZ'): Game {
   const id = randomUUID()
   const now = Date.now()
+  const bingoConfig = gameType === 'BINGO' ? JSON.stringify(DEFAULT_BINGO_CONFIG) : null
   db.prepare(
-    `INSERT INTO games (id, title, pin, status, mode, current_question_index, result_delay_seconds, paused, created_at, started_at, finished_at)
-     VALUES (?, ?, NULL, 'DRAFT', ?, 0, 6, 0, ?, NULL, NULL)`
-  ).run(id, title, mode, now)
+    `INSERT INTO games (id, title, pin, status, mode, game_type, bingo_config, current_question_index, result_delay_seconds, paused, created_at, started_at, finished_at)
+     VALUES (?, ?, NULL, 'DRAFT', ?, ?, ?, 0, 6, 0, ?, NULL, NULL)`
+  ).run(id, title, mode, gameType, bingoConfig, now)
   return getGame(id)!
 }
 
@@ -213,14 +223,16 @@ export function gameIdExists(id: string): boolean {
 /** Re-inserts a previously-exported game as-is (same id), used by full-data import/restore. */
 export function restoreGame(game: Game, pin: string | null): void {
   db.prepare(
-    `INSERT INTO games (id, title, pin, status, mode, current_question_index, result_delay_seconds, paused, created_at, started_at, finished_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO games (id, title, pin, status, mode, game_type, bingo_config, current_question_index, result_delay_seconds, paused, created_at, started_at, finished_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     game.id,
     game.title,
     pin,
     game.status,
     game.mode,
+    game.gameType,
+    game.bingoConfig ? JSON.stringify(game.bingoConfig) : null,
     game.currentQuestionIndex,
     game.resultDelaySeconds,
     game.paused ? 1 : 0,
@@ -615,6 +627,174 @@ export function hasTeamAnsweredCorrectly(questionId: string, teamId: string): bo
     .prepare('SELECT 1 FROM answers WHERE question_id = ? AND team_id = ? AND correct = 1')
     .get(questionId, teamId)
   return !!row
+}
+
+// ---------------------------------------------------------------------------
+// Bingo
+// ---------------------------------------------------------------------------
+
+interface BingoItemRow {
+  id: string
+  game_id: string
+  text: string
+  order_index: number
+}
+
+function mapBingoItem(row: BingoItemRow): BingoItem {
+  return { id: row.id, gameId: row.game_id, text: row.text, order: row.order_index }
+}
+
+export function listBingoItems(gameId: string): BingoItem[] {
+  const rows = db
+    .prepare('SELECT * FROM bingo_items WHERE game_id = ? ORDER BY order_index ASC')
+    .all(gameId) as BingoItemRow[]
+  return rows.map(mapBingoItem)
+}
+
+export function countBingoItems(gameId: string): number {
+  const row = db.prepare('SELECT COUNT(*) as n FROM bingo_items WHERE game_id = ?').get(gameId) as { n: number }
+  return row.n
+}
+
+export function createBingoItems(gameId: string, texts: string[]): BingoItem[] {
+  const startOrder = countBingoItems(gameId)
+  const ids = texts.map(() => randomUUID())
+  const insert = db.prepare('INSERT INTO bingo_items (id, game_id, text, order_index) VALUES (?, ?, ?, ?)')
+  const tx = db.transaction((rows: Array<{ id: string; text: string }>) => {
+    rows.forEach(({ id, text }, idx) => insert.run(id, gameId, text, startOrder + idx))
+  })
+  tx(texts.map((text, i) => ({ id: ids[i]!, text })))
+  return ids.map((id) => mapBingoItem(db.prepare('SELECT * FROM bingo_items WHERE id = ?').get(id) as BingoItemRow))
+}
+
+export function deleteBingoItem(id: string): void {
+  db.prepare('DELETE FROM bingo_items WHERE id = ?').run(id)
+}
+
+/** Re-inserts previously-exported bingo items as-is (same ids), used by full-data import/restore. */
+export function restoreBingoItems(items: BingoItem[]): void {
+  const insert = db.prepare('INSERT INTO bingo_items (id, game_id, text, order_index) VALUES (?, ?, ?, ?)')
+  const tx = db.transaction((rows: BingoItem[]) => {
+    rows.forEach((i) => insert.run(i.id, i.gameId, i.text, i.order))
+  })
+  tx(items)
+}
+
+export function updateBingoConfig(gameId: string, config: BingoConfig): void {
+  db.prepare('UPDATE games SET bingo_config = ? WHERE id = ?').run(JSON.stringify(config), gameId)
+}
+
+export interface BingoCard {
+  id: string
+  gameId: string
+  playerId: string
+  cellItemIds: string[]
+  createdAt: number
+}
+
+interface BingoCardRow {
+  id: string
+  game_id: string
+  player_id: string
+  cell_item_ids: string
+  created_at: number
+}
+
+function mapBingoCard(row: BingoCardRow): BingoCard {
+  return {
+    id: row.id,
+    gameId: row.game_id,
+    playerId: row.player_id,
+    cellItemIds: JSON.parse(row.cell_item_ids) as string[],
+    createdAt: row.created_at
+  }
+}
+
+export function createBingoCard(gameId: string, playerId: string, cellItemIds: string[]): BingoCard {
+  const id = randomUUID()
+  const now = Date.now()
+  db.prepare(
+    'INSERT INTO bingo_cards (id, game_id, player_id, cell_item_ids, created_at) VALUES (?, ?, ?, ?, ?)'
+  ).run(id, gameId, playerId, JSON.stringify(cellItemIds), now)
+  return { id, gameId, playerId, cellItemIds, createdAt: now }
+}
+
+export function getBingoCardForPlayer(playerId: string): BingoCard | null {
+  const row = db.prepare('SELECT * FROM bingo_cards WHERE player_id = ?').get(playerId) as BingoCardRow | undefined
+  return row ? mapBingoCard(row) : null
+}
+
+export function listBingoCardsForGame(gameId: string): BingoCard[] {
+  const rows = db.prepare('SELECT * FROM bingo_cards WHERE game_id = ?').all(gameId) as BingoCardRow[]
+  return rows.map(mapBingoCard)
+}
+
+/** Re-inserts previously-exported bingo cards as-is (same ids), used by full-data import/restore. */
+export function restoreBingoCards(cards: BingoCard[]): void {
+  const insert = db.prepare(
+    'INSERT INTO bingo_cards (id, game_id, player_id, cell_item_ids, created_at) VALUES (?, ?, ?, ?, ?)'
+  )
+  const tx = db.transaction((rows: BingoCard[]) => {
+    rows.forEach((c) => insert.run(c.id, c.gameId, c.playerId, JSON.stringify(c.cellItemIds), c.createdAt))
+  })
+  tx(cards)
+}
+
+export interface BingoCall {
+  id: string
+  gameId: string
+  itemId: string
+  order: number
+  calledAt: number
+}
+
+interface BingoCallRow {
+  id: string
+  game_id: string
+  item_id: string
+  order_index: number
+  called_at: number
+}
+
+function mapBingoCall(row: BingoCallRow): BingoCall {
+  return { id: row.id, gameId: row.game_id, itemId: row.item_id, order: row.order_index, calledAt: row.called_at }
+}
+
+export function createBingoCall(gameId: string, itemId: string, order: number): BingoCall {
+  const id = randomUUID()
+  const now = Date.now()
+  db.prepare('INSERT INTO bingo_calls (id, game_id, item_id, order_index, called_at) VALUES (?, ?, ?, ?, ?)').run(
+    id,
+    gameId,
+    itemId,
+    order,
+    now
+  )
+  return { id, gameId, itemId, order, calledAt: now }
+}
+
+export function listBingoCalls(gameId: string): BingoCall[] {
+  const rows = db
+    .prepare('SELECT * FROM bingo_calls WHERE game_id = ? ORDER BY order_index ASC')
+    .all(gameId) as BingoCallRow[]
+  return rows.map(mapBingoCall)
+}
+
+/** Re-inserts previously-exported bingo calls as-is (same ids), used by full-data import/restore. */
+export function restoreBingoCalls(calls: BingoCall[]): void {
+  const insert = db.prepare(
+    'INSERT INTO bingo_calls (id, game_id, item_id, order_index, called_at) VALUES (?, ?, ?, ?, ?)'
+  )
+  const tx = db.transaction((rows: BingoCall[]) => {
+    rows.forEach((c) => insert.run(c.id, c.gameId, c.itemId, c.order, c.calledAt))
+  })
+  tx(calls)
+}
+
+/** Clears a bingo game's in-progress state (cards + call log) while keeping the item pool and config, for restart. */
+export function clearBingoRuntimeForRestart(gameId: string): void {
+  db.prepare('DELETE FROM bingo_cards WHERE game_id = ?').run(gameId)
+  db.prepare('DELETE FROM bingo_calls WHERE game_id = ?').run(gameId)
 }
 
 // ---------------------------------------------------------------------------

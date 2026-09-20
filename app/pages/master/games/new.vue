@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import type { GameMode } from '#shared/types'
+import type { GameMode, GameType } from '#shared/types'
 
 definePageMeta({ middleware: 'master-auth' })
 useHead({ title: 'New Game' })
 
 const title = ref('')
+const gameType = ref<GameType>('QUIZ')
 const mode = ref<GameMode>('TEAM')
 const creating = ref(false)
 const error = ref('')
@@ -19,7 +20,7 @@ async function create() {
   try {
     const game = await $fetch<{ id: string }>('/api/games', {
       method: 'POST',
-      body: { title: title.value.trim(), mode: mode.value }
+      body: { title: title.value.trim(), mode: mode.value, gameType: gameType.value }
     })
     router.push(`/master/games/${game.id}`)
   } catch (e: unknown) {
@@ -58,6 +59,34 @@ async function create() {
         </label>
 
         <div class="flex flex-col gap-2">
+          <span class="text-sm font-semibold text-slate-600 dark:text-slate-300">Game type</span>
+          <div class="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              class="btn-touch card rounded-2xl px-4 py-4 text-center"
+              :class="gameType === 'QUIZ' ? 'ring-4 ring-blue-500 ring-offset-2' : 'hover:ring-2 hover:ring-indigo-200'"
+              @click="gameType = 'QUIZ'"
+            >
+              <span class="flex items-center justify-center gap-1.5 font-display font-bold text-slate-800 dark:text-slate-100">
+                <Icon name="tabler:help-hexagon" class="h-5 w-5" /> Quiz
+              </span>
+              <span class="block text-xs text-slate-400 dark:text-slate-500">Ask questions, score by speed</span>
+            </button>
+            <button
+              type="button"
+              class="btn-touch card rounded-2xl px-4 py-4 text-center"
+              :class="gameType === 'BINGO' ? 'ring-4 ring-blue-500 ring-offset-2' : 'hover:ring-2 hover:ring-indigo-200'"
+              @click="gameType = 'BINGO'"
+            >
+              <span class="flex items-center justify-center gap-1.5 font-display font-bold text-slate-800 dark:text-slate-100">
+                <Icon name="tabler:grid-dots" class="h-5 w-5" /> Bingo
+              </span>
+              <span class="block text-xs text-slate-400 dark:text-slate-500">Call items, first card wins</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-2">
           <span class="text-sm font-semibold text-slate-600 dark:text-slate-300">Game mode</span>
           <div class="grid grid-cols-2 gap-3">
             <button
@@ -91,7 +120,7 @@ async function create() {
           class="btn-touch flex min-h-[52px] items-center justify-center gap-1.5 rounded-2xl bg-indigo-600 text-lg font-display font-bold text-white shadow-lg disabled:opacity-50"
           :disabled="creating"
         >
-          {{ creating ? 'Creating…' : 'Continue to Questions' }}
+          {{ creating ? 'Creating…' : gameType === 'BINGO' ? 'Continue to Bingo Items' : 'Continue to Questions' }}
           <Icon v-if="!creating" name="tabler:arrow-right" class="h-5 w-5" />
         </button>
       </form>

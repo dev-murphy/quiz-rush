@@ -79,17 +79,51 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS bingo_items (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  text TEXT NOT NULL,
+  order_index INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS bingo_cards (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  player_id TEXT NOT NULL UNIQUE REFERENCES players(id) ON DELETE CASCADE,
+  cell_item_ids TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS bingo_calls (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  item_id TEXT NOT NULL,
+  order_index INTEGER NOT NULL,
+  called_at INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_questions_game ON questions(game_id);
 CREATE INDEX IF NOT EXISTS idx_teams_game ON teams(game_id);
 CREATE INDEX IF NOT EXISTS idx_players_game ON players(game_id);
 CREATE INDEX IF NOT EXISTS idx_answers_question ON answers(question_id);
 CREATE INDEX IF NOT EXISTS idx_catchup_sessions_game ON catchup_sessions(game_id);
+CREATE INDEX IF NOT EXISTS idx_bingo_items_game ON bingo_items(game_id);
+CREATE INDEX IF NOT EXISTS idx_bingo_cards_game ON bingo_cards(game_id);
+CREATE INDEX IF NOT EXISTS idx_bingo_calls_game ON bingo_calls(game_id);
 `)
 
 // Additive migration for databases created before `mode` existed on `games`.
 const gameColumns = db.prepare('PRAGMA table_info(games)').all() as { name: string }[]
 if (!gameColumns.some((c) => c.name === 'mode')) {
   db.exec("ALTER TABLE games ADD COLUMN mode TEXT NOT NULL DEFAULT 'TEAM'")
+}
+
+// Additive migration for databases created before `game_type`/`bingo_config` existed on `games`.
+if (!gameColumns.some((c) => c.name === 'game_type')) {
+  db.exec("ALTER TABLE games ADD COLUMN game_type TEXT NOT NULL DEFAULT 'QUIZ'")
+}
+if (!gameColumns.some((c) => c.name === 'bingo_config')) {
+  db.exec('ALTER TABLE games ADD COLUMN bingo_config TEXT')
 }
 
 // Additive migration for databases created before `session_id` existed on `teams`.

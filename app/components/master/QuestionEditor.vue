@@ -50,6 +50,9 @@ const correctX = ref(type.value === 'pin_answer' ? (props.question!.config as Pi
 const correctY = ref(type.value === 'pin_answer' ? (props.question!.config as PinAnswerConfig).correctY : 0.5)
 const radius = ref(type.value === 'pin_answer' ? (props.question!.config as PinAnswerConfig).radius : 0.12)
 const pinContainer = ref<HTMLElement | null>(null)
+const imageFileInput = ref<HTMLInputElement | null>(null)
+const uploadingImage = ref(false)
+const uploadError = ref('')
 
 const puzzleItems = ref<string[]>(type.value === 'puzzle' ? [...(props.question!.config as PuzzleConfig).items] : ['', '', ''])
 
@@ -149,6 +152,29 @@ function setPin(e: MouseEvent) {
   const rect = pinContainer.value.getBoundingClientRect()
   correctX.value = Math.round(Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)) * 1000) / 1000
   correctY.value = Math.round(Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height)) * 1000) / 1000
+}
+
+function pickImageFile() {
+  imageFileInput.value?.click()
+}
+
+async function onImageFileChosen(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  uploadError.value = ''
+  uploadingImage.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    const { url } = await $fetch<{ url: string }>('/api/uploads/image', { method: 'POST', body: formData })
+    imageUrl.value = url
+  } catch (e: unknown) {
+    uploadError.value = (e as { data?: { statusMessage?: string } })?.data?.statusMessage ?? 'Could not upload image'
+  } finally {
+    uploadingImage.value = false
+    input.value = ''
+  }
 }
 
 function buildConfig(): QuestionConfig | null {
@@ -344,10 +370,25 @@ async function save() {
 
       <!-- Pin answer -->
       <div v-else-if="type === 'pin_answer'" class="flex flex-col gap-3">
-        <label class="flex flex-col gap-1">
-          <span class="text-sm font-semibold text-slate-600 dark:text-slate-300">Background image URL</span>
-          <input v-model="imageUrl" type="text" class="rounded-xl border border-slate-200 px-4 py-2 dark:border-slate-600 dark:bg-slate-900 dark:text-white" placeholder="https://..." />
-        </label>
+        <span class="text-sm font-semibold text-slate-600 dark:text-slate-300">Background image</span>
+        <div class="flex flex-wrap items-center gap-2">
+          <input ref="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" @change="onImageFileChosen" />
+          <button
+            type="button"
+            class="btn-touch rounded-xl bg-indigo-600 px-4 py-2 font-semibold text-white disabled:opacity-50"
+            :disabled="uploadingImage"
+            @click="pickImageFile"
+          >
+            {{ uploadingImage ? 'Uploading…' : 'Upload image' }}
+          </button>
+          <input
+            v-model="imageUrl"
+            type="text"
+            class="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-2 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+            placeholder="or paste an image URL"
+          />
+        </div>
+        <p v-if="uploadError" class="text-xs font-semibold text-red-500">{{ uploadError }}</p>
         <div v-if="imageUrl" ref="pinContainer" class="relative w-full max-w-md cursor-crosshair overflow-hidden rounded-xl ring-1 ring-slate-200" @click="setPin">
           <img :src="imageUrl" class="pointer-events-none block w-full" draggable="false" />
           <div

@@ -344,7 +344,10 @@ export function buildCatchupSyncStateForPlayer(gameId: string, sessionId: string
     leaderboard: computeLeaderboard(gameId, rt.previousRanks),
     myAnswerLocked: myTeamLocked,
     myTeamLocked,
-    lockedTeamIds: [...rt.lockedTeams]
+    lockedTeamIds: [...rt.lockedTeams],
+    bingoCard: null,
+    bingoCalledItems: [],
+    bingoItemsRemaining: 0
   }
 }
 

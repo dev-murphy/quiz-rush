@@ -1,5 +1,6 @@
-import type { ClientMessage } from '#shared/types'
+import type { ClientMessage, Game } from '#shared/types'
 import { GM_COOKIE, parseCookieHeader, playerCookieName } from '../utils/auth'
+import { buildBingoFullSyncState, claimBingo } from '../utils/bingoEngine'
 import { buildCatchupSyncForMaster } from '../utils/catchupEngine'
 import { buildFullSyncState, submitAnswer } from '../utils/gameEngine'
 import {
@@ -11,6 +12,10 @@ import {
   setPlayerConnected
 } from '../utils/repo'
 import { broadcast, getPeerMeta, registerPeer, sendMessage, unregisterPeer } from '../utils/wsRegistry'
+
+function buildSyncState(game: Game, playerId: string | null) {
+  return game.gameType === 'BINGO' ? buildBingoFullSyncState(game.id, playerId) : buildFullSyncState(game.id, playerId)
+}
 
 export default defineWebSocketHandler({
   open(peer) {
@@ -35,9 +40,11 @@ export default defineWebSocketHandler({
           return
         }
         registerPeer(peer, { role: 'master', gameId })
-        const state = buildFullSyncState(gameId, null)
+        const state = buildSyncState(game, null)
         if (state) sendMessage(peer, { type: 'STATE_SYNC', state })
-        sendMessage(peer, { type: 'CATCHUP_SYNC', payload: buildCatchupSyncForMaster(gameId) })
+        if (game.gameType === 'QUIZ') {
+          sendMessage(peer, { type: 'CATCHUP_SYNC', payload: buildCatchupSyncForMaster(gameId) })
+        }
         return
       }
 
@@ -65,7 +72,7 @@ export default defineWebSocketHandler({
         setPlayerConnected(player.id, true)
         const updated = getPlayer(player.id)
         if (updated) broadcast(game.id, { type: 'PLAYER_UPDATED', player: updated }, peer)
-        const state = buildFullSyncState(game.id, player.id)
+        const state = buildSyncState(game, player.id)
         if (state) sendMessage(peer, { type: 'STATE_SYNC', state })
         return
       }
@@ -99,6 +106,12 @@ export default defineWebSocketHandler({
       const player = getPlayer(meta.playerId)
       if (!player) return
       submitAnswer(meta.gameId, player, parsed.questionId, parsed.answer)
+    }
+
+    if (parsed.type === 'BINGO_CLAIM') {
+      const player = getPlayer(meta.playerId)
+      if (!player) return
+      claimBingo(meta.gameId, player)
     }
   },
 

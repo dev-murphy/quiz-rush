@@ -40,7 +40,8 @@ function teamAnswered(teamId: string) {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-900 pb-16 text-white">
+  <BingoHostPanel v-if="liveGame.game?.gameType === 'BINGO'" :game-id="gameId" />
+  <div v-else class="min-h-screen bg-slate-900 pb-16 text-white">
     <header class="border-b border-white/10">
       <div class="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
         <div>

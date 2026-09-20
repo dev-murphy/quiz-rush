@@ -167,7 +167,11 @@ function continueLink(game: { id: string; status: string }) {
               {{ game.status.replace('_', ' ') }}
             </span>
           </div>
-          <p class="text-sm text-slate-400 dark:text-slate-500">
+          <p v-if="game.gameType === 'BINGO'" class="text-sm text-slate-400 dark:text-slate-500">
+            {{ game.itemCount }} item{{ game.itemCount === 1 ? '' : 's' }} · created
+            {{ new Date(game.createdAt).toLocaleDateString() }}
+          </p>
+          <p v-else class="text-sm text-slate-400 dark:text-slate-500">
             {{ game.questionCount }} question{{ game.questionCount === 1 ? '' : 's' }} · created
             {{ new Date(game.createdAt).toLocaleDateString() }}
           </p>
@@ -188,7 +192,7 @@ function continueLink(game: { id: string; status: string }) {
               v-if="game.status === 'DRAFT'"
               type="button"
               class="btn-touch rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-40"
-              :disabled="game.questionCount === 0"
+              :disabled="game.gameType === 'BINGO' ? game.itemCount === 0 : game.questionCount === 0"
               @click="launchAndGo(game.id)"
             >
               Launch

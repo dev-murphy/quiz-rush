@@ -43,6 +43,11 @@ function submitAnswer(answer: unknown) {
   send(message)
 }
 
+function submitBingoClaim() {
+  const message: ClientMessage = { type: 'BINGO_CLAIM' }
+  send(message)
+}
+
 const teammates = computed(() => liveGame.players.filter((p) => p.teamId === liveGame.self?.team?.id))
 const isIndividual = computed(() => liveGame.game?.mode === 'INDIVIDUAL')
 
@@ -117,6 +122,18 @@ const iWon = computed(() => liveGame.finalLeaderboard?.[0]?.teamId === liveGame.
         </button>
 
         <PlayerWaiting message="Waiting for Game Master to start…" />
+      </main>
+
+      <!-- BINGO -->
+      <main v-else-if="liveGame.game.status === 'ACTIVE' && liveGame.game.gameType === 'BINGO'" class="flex flex-col items-center gap-6 px-4 py-6">
+        <BingoBoard
+          :card="liveGame.bingoCard"
+          :called-item-ids="liveGame.bingoCalledItemIds"
+          :last-called="liveGame.bingoLastCalled"
+          :claim-rejected="liveGame.bingoClaimRejected"
+          :paused="liveGame.game.paused"
+          @claim="submitBingoClaim"
+        />
       </main>
 
       <!-- ACTIVE QUESTION -->

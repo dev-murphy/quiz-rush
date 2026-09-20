@@ -93,18 +93,43 @@ export type GameStatus =
 
 export type GameMode = 'TEAM' | 'INDIVIDUAL'
 
+export type GameType = 'QUIZ' | 'BINGO'
+
+export interface BingoConfig {
+  gridSize: number // e.g. 5 for a 5x5 card
+  freeSpace: boolean // free space in the center cell
+  winPattern: 'LINE' | 'BLACKOUT'
+  winPoints: number
+}
+
 export interface Game {
   id: string
   title: string
   pin: string | null
   status: GameStatus
   mode: GameMode
+  gameType: GameType
+  bingoConfig: BingoConfig | null
   currentQuestionIndex: number
   resultDelaySeconds: number
   paused: boolean
   createdAt: number
   startedAt: number | null
   finishedAt: number | null
+}
+
+export interface BingoItem {
+  id: string
+  gameId: string
+  text: string
+  order: number
+}
+
+/** One cell of a player's assigned card. */
+export interface BingoCardCell {
+  itemId: string
+  text: string
+  isFree: boolean
 }
 
 export interface Team {
@@ -236,6 +261,22 @@ export interface FullSyncState {
   myAnswerLocked: boolean
   myTeamLocked: boolean
   lockedTeamIds: string[]
+  /** Bingo-only fields; empty/null for quiz games. */
+  bingoCard: BingoCardCell[] | null
+  bingoCalledItems: BingoCalledItem[]
+  bingoItemsRemaining: number
+}
+
+export interface BingoCalledItem {
+  itemId: string
+  text: string
+}
+
+export interface BingoWinner {
+  playerId: string
+  playerName: string
+  teamId: string | null
+  pattern: 'LINE' | 'BLACKOUT'
 }
 
 export type ServerMessage =
@@ -259,13 +300,17 @@ export type ServerMessage =
   | { type: 'QUESTION_ENDED'; payload: QuestionEndedPayload }
   | { type: 'GAME_PAUSED' }
   | { type: 'GAME_RESUMED' }
-  | { type: 'GAME_FINISHED'; leaderboard: LeaderboardEntry[] }
+  | { type: 'GAME_FINISHED'; leaderboard: LeaderboardEntry[]; winner?: BingoWinner }
   | { type: 'GAME_CANCELLED'; message: string }
   | { type: 'KICKED'; message: string }
   | { type: 'ERROR'; message: string }
   | { type: 'PONG' }
   | { type: 'CATCHUP_SYNC'; payload: CatchupSyncPayload }
+  | { type: 'BINGO_CARD_ASSIGNED'; cells: BingoCardCell[] }
+  | { type: 'BINGO_ITEM_CALLED'; itemId: string; text: string; calledItems: BingoCalledItem[]; remaining: number }
+  | { type: 'BINGO_CLAIM_REJECTED'; message: string }
 
 export type ClientMessage =
   | { type: 'ANSWER_SUBMIT'; questionId: string; answer: unknown }
   | { type: 'PING' }
+  | { type: 'BINGO_CLAIM' }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Game, Player, PublicQuestion, Question, Team } from '#shared/types'
+import type { BingoItem, Game, Player, PublicQuestion, Question, Team } from '#shared/types'
 import { sanitizeQuestionClient } from '~/utils/previewSanitize'
 import { downloadJson } from '~/utils/downloadJson'
 import { QUESTION_TYPE_MAP } from '~/utils/questionTypeMeta'
@@ -31,6 +31,7 @@ const gameId = String(route.params.id)
 
 const game = ref<Game | null>(null)
 const questions = ref<Question[]>([])
+const bingoItems = ref<BingoItem[]>([])
 const teams = ref<Team[]>([])
 const players = ref<Player[]>([])
 const loadError = ref('')
@@ -41,11 +42,12 @@ useHead({ title: () => (game.value?.title ? `${game.value.title} · Edit` : 'Edi
 const authedFetch = useAuthedFetch()
 
 async function refresh() {
-  const data = await authedFetch<{ game: Game; questions: Question[]; teams: Team[]; players: Player[] }>(
+  const data = await authedFetch<{ game: Game; questions: Question[]; bingoItems: BingoItem[]; teams: Team[]; players: Player[] }>(
     `/api/games/${gameId}`
   )
   game.value = data.game
   questions.value = data.questions
+  bingoItems.value = data.bingoItems
   teams.value = data.teams
   players.value = data.players
   titleDraft.value = data.game.title
@@ -315,7 +317,11 @@ const previewPublic = computed<PublicQuestion | null>(() =>
         </p>
       </section>
 
-      <section>
+      <section v-if="game.gameType === 'BINGO'">
+        <BingoItemEditor :game-id="gameId" :game="game" :items="bingoItems" @changed="refresh" />
+      </section>
+
+      <section v-else>
         <div class="mb-3 flex items-center justify-between">
           <h2 class="font-display text-lg font-bold text-slate-800 dark:text-slate-100">Questions ({{ questions.length }})</h2>
           <div class="flex items-center gap-3">
@@ -439,7 +445,10 @@ const previewPublic = computed<PublicQuestion | null>(() =>
 
     <div class="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
       <div class="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
-        <p class="text-sm text-slate-400 dark:text-slate-500">{{ questions.length }} question{{ questions.length === 1 ? '' : 's' }} saved</p>
+        <p v-if="game.gameType === 'BINGO'" class="text-sm text-slate-400 dark:text-slate-500">
+          {{ bingoItems.length }} item{{ bingoItems.length === 1 ? '' : 's' }} saved
+        </p>
+        <p v-else class="text-sm text-slate-400 dark:text-slate-500">{{ questions.length }} question{{ questions.length === 1 ? '' : 's' }} saved</p>
         <button
           v-if="game.status === 'FINISHED'"
           type="button"
@@ -454,7 +463,7 @@ const previewPublic = computed<PublicQuestion | null>(() =>
           v-else
           type="button"
           class="btn-touch flex items-center gap-1.5 rounded-2xl bg-emerald-600 px-6 py-3 font-display font-bold text-white shadow-lg disabled:opacity-40"
-          :disabled="questions.length === 0 || launching"
+          :disabled="(game.gameType === 'BINGO' ? bingoItems.length === 0 : questions.length === 0) || launching"
           @click="launch"
         >
           {{ launching ? 'Launching…' : 'Launch Game' }}
